@@ -6,12 +6,12 @@ using namespace std;
 
 int main(int argc, char **argv)
 {
-	string dbpath;
+    string dbpath;
 
-	dbpath = argv[1];
+    dbpath = argv[1];
 
-	if(parseBedrock(dbpath))
-		return 0;
+    if(parseBedrock(dbpath))
+	return 0;
 
-	return -1;
+    return -1;
 }

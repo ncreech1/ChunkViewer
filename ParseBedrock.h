@@ -1,8 +1,4 @@
-#ifndef PARSE_BEDROCK_HH
-#define PARSE_BEDROCK_HH
-
+#pragma once
 #include <string>
 
 bool parseBedrock(std::string dbpath);
-
-#endif
