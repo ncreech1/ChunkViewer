@@ -14,7 +14,7 @@ ChunkViewer: $(OBJS)
 ChunkViewer.o: ChunkViewer.cpp ParseBedrock.h NBTTag.h
 	$(CC) $(CFLAGS) -c ChunkViewer.cpp $(LIBS)
 
-ParseBedrock.o: ParseBedrock.cpp ParseBedrock.h NBTTag.h
+ParseBedrock.o: ParseBedrock.cpp
 	$(CC) $(CFLAGS) -c ParseBedrock.cpp $(LIBS)
 
 NBTTag.o: NBTTag.cpp NBTTag.h

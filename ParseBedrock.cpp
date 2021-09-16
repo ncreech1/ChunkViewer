@@ -12,7 +12,7 @@
 
 using namespace std;
 
-//Parses a 32-bit little endian integer from a Slice
+//Parses a little endian uint32 from a Slice
 uint32_t parseInt32(leveldb::Slice &s, uint32_t offset)
 {
     uint32_t result;
@@ -27,6 +27,22 @@ uint32_t parseInt32(leveldb::Slice &s, uint32_t offset)
     return result;
 }
 
+//Parses a little endian uint16 from a Slice
+uint16_t parseInt16(leveldb::Slice &s, uint16_t offset)
+{
+    uint16_t result;
+
+    result = 0;
+    for(int i = 0; i < 2; i++)
+    {
+	//Static cast prevents sign extension
+	result |= (static_cast<uint8_t>(s[offset + i] << i * 8));
+    }
+
+    return result;
+}
+
+//Parses a little endian varint from a Slice
 uint32_t parseVarint(leveldb::Slice &s, uint32_t offset)
 {
     uint32_t result;
@@ -53,11 +69,77 @@ uint32_t parseVarint(leveldb::Slice &s, uint32_t offset)
     return result;
 }
 
-int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
+//Parses a Slice for an NBTTag payload and returns the new offset 
+int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
 {
-    return 0;
+    char byte;
+
+    switch(tag.type)
+    {
+	case NBTType::END:
+	    break;
+	case NBTType::BYTE:
+	    byte = s[offset];
+	    tag.payload = &byte;
+	    offset++;
+	    break;
+	case NBTType::SHORT:
+	    //tag.payload = 0 | s[offset] | (s[offset + 1] << 8);
+	    //offset += 2;
+	    break;
+	case NBTType::INT:
+	    //byte = parseVarint(s, offset));
+	    //tag.payload = &byte;
+	    //offset += 4;
+	    break;
+	case NBTType::LONG:
+	    break;
+	case NBTType::FLOAT:
+	    break;
+	case NBTType::DOUBLE:
+	    break;
+	case NBTType::BYTE_ARRAY:
+	    break;
+	case NBTType::STRING:
+	    break;
+	case NBTType::LIST:
+	    break;
+	case NBTType::COMPOUND:
+	    break;
+	case NBTType::INT_ARRAY:
+	    break;
+	case NBTType::LONG_ARRAY:
+	    break;
+    }
+
+    return offset;
 }
 
+//Parses a Slice for an NBTTag and returns the new offset
+int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
+{
+    uint16_t nameLength;
+
+    //Parse the data type of the tag
+    tag.type = static_cast<NBTType>(s[offset]);
+    offset++;
+
+    //Parse the length of the tag name
+    nameLength = parseInt16(s, offset);
+    offset += 2;
+
+    //Parse the tag name
+    for(int i = 0; i < nameLength; i++)
+	tag.name += static_cast<char>(s[offset + i]);
+    offset += nameLength;
+
+    //Parse the tag payload
+    offset = parseNBTPayload(s, offset, tag);
+
+    return offset;
+}
+
+//Parses a Minecraft Bedrock db folder for chunk data 
 bool parseBedrock(string path)
 {
     leveldb::DB *db;
@@ -78,6 +160,7 @@ bool parseBedrock(string path)
 
     status = leveldb::DB::Open(options, path, &db);
 
+    //Error opening db folder
     if(!status.ok())
     {
 	cout << "Could not open db folder '" << path << "'" << endl;
@@ -86,6 +169,7 @@ bool parseBedrock(string path)
 
     lit = db->NewIterator(readOptions);
 
+    //Iterate the db table
     int totalChunks = 0;
     for(lit->SeekToFirst(); lit->Valid(); lit->Next())
     {
