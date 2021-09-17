@@ -1,6 +1,1 @@
-Found Overworld Chunk at (0, 0, 239): 1 Number of Words: 682 PSize: 33
-
-Found Overworld Chunk at (0, 1, 239): 1 Number of Words: 512 PSize: 9
-
-Found Overworld Chunk at (0, 2, 239): 2 Number of Words: 512 PSize: 14
-ChunkViewer: ./leveldb-mcpe/include/leveldb/slice.h:51: char leveldb::Slice::operator[](size_t) const: Assertion `n < size()' failed.
+Total Sub Chunks: 1404

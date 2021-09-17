@@ -12,10 +12,12 @@
 
 using namespace std;
 
-//Parses a little endian uint32 from a Slice
-uint32_t parseInt32(leveldb::Slice &s, uint32_t offset)
+int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag, bool parseType = true);
+
+//Parses a little endian int32 from a Slice
+int32_t parseInt32(leveldb::Slice &s, int32_t offset)
 {
-    uint32_t result;
+    int32_t result;
 
     result = 0;
     for(int i = 0; i < 4; i++)
@@ -27,10 +29,10 @@ uint32_t parseInt32(leveldb::Slice &s, uint32_t offset)
     return result;
 }
 
-//Parses a little endian uint16 from a Slice
-uint16_t parseInt16(leveldb::Slice &s, uint16_t offset)
+//Parses a little endian int16 from a Slice
+int16_t parseShort(leveldb::Slice &s, int16_t offset)
 {
-    uint16_t result;
+    int16_t result;
 
     result = 0;
     for(int i = 0; i < 2; i++)
@@ -42,73 +44,145 @@ uint16_t parseInt16(leveldb::Slice &s, uint16_t offset)
     return result;
 }
 
-//Parses a little endian varint from a Slice
-uint32_t parseVarint(leveldb::Slice &s, uint32_t offset)
+//Parses a little endian varint from a Slice and modifies the offset reference
+int32_t parseVarint(leveldb::Slice &s, uint32_t &offset)
 {
-    uint32_t result;
+    int32_t result;
+    uint8_t byte;
     int i;
-
+    
     i = 0;
     result = 0;
-    
     while(1)
     {
-	unsigned char piece;
+	byte = s[offset + i];
 
-	piece = s[offset + i];
-	piece &= 0x7F; //Mask out the MSB
-	result |= (piece << i * 7);
+	//Mask out the MSB and shift
+	result |= static_cast<uint8_t>(byte & 0x7F) << (i * 7);
 
 	//Zero in MSB indicates end of varint
-	if(s[offset + i] & 0x80 == 0)
+	//Static cast to prevent sign extension
+	if(static_cast<uint8_t>(byte & 0x80u) == 0)
 	    break;
 	
 	i++;
     }
 
+    offset += i + 1;
     return result;
+}
+
+//Parses a little endian varlong from a Slice and modifies the offset reference
+int64_t parseVarlong(leveldb::Slice &s, uint32_t &offset)
+{
+    int64_t result;
+    uint8_t byte;
+    int i;
+    
+    i = 0;
+    result = 0;
+    while(1)
+    {
+	byte = s[offset + i];
+
+	//Mask out the MSB and shift
+	result |= static_cast<uint8_t>(byte & 0x7F) << (i * 7);
+
+	//Zero in MSB indicates end of varint
+	//Static cast to prevent sign extension
+	if(static_cast<int8_t>(byte & 0x80u) == 0)
+	    break;
+	
+	i++;
+    }
+
+    offset += i + 1;
+    return result;
+}
+
+//Returns the varint as the signed decoding of the zig zag
+int32_t parseVarintZZ(leveldb::Slice s, uint32_t &offset)
+{
+    int32_t encoded;
+
+    encoded = parseVarint(s, offset);
+    
+    return (encoded & 1) ? (encoded >> 1) ^ -1 : (encoded >> 1);
+}
+
+//Returns the varlong as the signed decoding of the zig zag
+int64_t parseVarlongZZ(leveldb::Slice s, uint32_t &offset)
+{
+    int64_t encoded;
+
+    encoded = parseVarlong(s, offset);
+    
+    return (encoded & 1) ? (encoded >> 1) ^ -1 : (encoded >> 1);
 }
 
 //Parses a Slice for an NBTTag payload and returns the new offset 
 int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
 {
-    char byte;
+    uint32_t stringLength;
+    uint32_t listLength;
+    NBTType listType;
 
     switch(tag.type)
     {
-	case NBTType::END:
-	    break;
 	case NBTType::BYTE:
-	    byte = s[offset];
-	    tag.payload = &byte;
+	    tag.byteVal = s[offset];
 	    offset++;
+	    //cerr << "Byte Payload: " << tag.byteVal << endl;
 	    break;
 	case NBTType::SHORT:
-	    //tag.payload = 0 | s[offset] | (s[offset + 1] << 8);
-	    //offset += 2;
+	    tag.shortVal = parseShort(s, offset);
+	    offset += 2;
 	    break;
 	case NBTType::INT:
-	    //byte = parseVarint(s, offset));
-	    //tag.payload = &byte;
-	    //offset += 4;
+	    //cerr << "Parsing Int Tag " << tag.name << endl;
+	    tag.intVal = parseInt32(s, offset);
+	    offset += 4;
+	    //cerr << "Int Payload: " << tag.intVal << endl;
+	    //cerr << "End of Int Tag" << endl;
 	    break;
 	case NBTType::LONG:
-	    break;
-	case NBTType::FLOAT:
-	    break;
-	case NBTType::DOUBLE:
-	    break;
-	case NBTType::BYTE_ARRAY:
+	    tag.longVal = parseVarlongZZ(s, offset);
 	    break;
 	case NBTType::STRING:
+	    //cerr << "Parsing String Tag " << tag.name << endl;
+	    stringLength = parseShort(s, offset);
+	    offset += 2;
+	    tag.stringVal = "";
+	    for(int x = 0; x < stringLength; x++)
+	    {
+		tag.stringVal += static_cast<char>(s[offset]);
+		offset++;
+	    }
+	    //cerr << "String Payload: " << tag.stringVal << endl;
+	    //cerr << "End of String Tag" << endl;
 	    break;
 	case NBTType::LIST:
+	    listType = static_cast<NBTType>(s[offset]);
+	    offset++;
+	    listLength = parseVarintZZ(s, offset);
+	    for(int x = 0; x < listLength; x++)
+	    {
+		NBTTag innerTag;
+		innerTag.type = listType;
+		offset = parseNBTTag(s, offset, innerTag, false);
+		tag.addInnerTag(innerTag);
+	    }
 	    break;
 	case NBTType::COMPOUND:
-	    break;
-	case NBTType::INT_ARRAY:
-	    break;
-	case NBTType::LONG_ARRAY:
+	    //cerr << "Parsing Compound Tag " << tag.name << endl;
+	    while(s[offset] != 0)
+	    {
+		NBTTag innerTag;
+		offset = parseNBTTag(s, offset, innerTag);
+		tag.addInnerTag(innerTag);
+	    }
+	    //cerr << "End of Compound Tag " << tag.name << endl;
+	    offset++;
 	    break;
     }
 
@@ -116,22 +190,34 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
 }
 
 //Parses a Slice for an NBTTag and returns the new offset
-int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
+int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag, bool parseType /*=true*/)
 {
-    uint16_t nameLength;
+    int32_t nameLength;
 
     //Parse the data type of the tag
-    tag.type = static_cast<NBTType>(s[offset]);
-    offset++;
+    if(parseType)
+    {
+	tag.type = static_cast<NBTType>(s[offset]);
+	offset++;
+    }
+
+    //cerr << "Found tag of type " << tag.type << endl;
 
     //Parse the length of the tag name
-    nameLength = parseInt16(s, offset);
+    nameLength = parseShort(s, offset);
     offset += 2;
+    tag.name = "";
+
+    //cerr << "Name length: " << nameLength << endl;
 
     //Parse the tag name
     for(int i = 0; i < nameLength; i++)
-	tag.name += static_cast<char>(s[offset + i]);
-    offset += nameLength;
+    {
+	tag.name += static_cast<unsigned char>(s[offset]);
+	offset++;
+    }
+
+    //cerr << "Name: " << tag.name << endl;
 
     //Parse the tag payload
     offset = parseNBTPayload(s, offset, tag);
@@ -181,12 +267,12 @@ bool parseBedrock(string path)
 	//Keys for chunks are between 9 and 14 bytes
 	if(k.size() >= 9 && k.size() <= 14)
 	{
-	    uint32_t x, y, z;
-	    uint32_t regionID;
+	    int32_t chunkX, chunkY, chunkZ;
+	    int32_t regionID;
 	    string regionName;
 
-	    x = parseInt32(k, 0);
-	    z = parseInt32(k, 4);
+	    chunkX = parseInt32(k, 0);
+	    chunkZ = parseInt32(k, 4);
 	    regionName = "Overworld";
 
 	    if(k.size() == 13 || k.size() == 14)
@@ -199,14 +285,19 @@ bool parseBedrock(string path)
 	    //sub chunk prefix keys describing 16x16x16 blocks of terrain		
 	    if((k.size() == 10 && k[8] == 0x2F) || (k.size() == 14 && k[12] == 0x2F))
 	    {	
-		int currOffset;
+		uint32_t currOffset;
 		int chunkFormat, storageNum;
 
-		y = k[k.size() - 1];
+		chunkY = k[k.size() - 1];
 		currOffset = 0;
 
-		cerr << "Found " << regionName << " Chunk at ";
-		cerr << "(" << x << ", " << y << ", " << z << "): ";
+		//cerr << "Found " << regionName << " Chunk at ";
+		//cerr << "(" << chunkX << ", " << chunkY << ", " << chunkZ << ")" << endl;
+
+		//for(int x = 0; x < v.size(); x++)
+		  //  fprintf(stderr, "%02x ", (unsigned char)v[x]);
+
+		cerr << dec;
 		
 		//The type of format this sub chunk uses
 		chunkFormat = v[currOffset];
@@ -221,7 +312,7 @@ bool parseBedrock(string path)
 
 		//The number of block storages
 		storageNum = v[currOffset];
-		cerr << storageNum << " ";
+		//cerr << "Block Storages: " << storageNum << endl;
 		currOffset++;
 
 		//Chunk format is followed by groups of bytes called block storages
@@ -229,8 +320,9 @@ bool parseBedrock(string path)
 		{
 		    int storageVersion;
 		    int bitsPerBlock, blocksPerWord, numWords;
-		    int blockDataOffset, palletteOffset;
+		    int blockDataOffset, paletteOffset;
 		    int32_t paletteSize;
+		    int position;
 
 		    storageVersion = v[currOffset];
 		    currOffset++;
@@ -245,50 +337,60 @@ bool parseBedrock(string path)
 		    bitsPerBlock = storageVersion >> 1;
 		    blocksPerWord = 32 / bitsPerBlock;
 
-		    /*3, 5, and 6 blocks per word require padding bytes between 
-		    //blocks and are not used in normal minecraft saves
-		    if(32 % bitsPerBlock != 0)
-		    {
-			cerr << bitsPerBlock << " Error: Found padding compression!" << endl;
-			return false;
-		    }*/
-
-		    numWords = ceil(4096 / blocksPerWord);
+		    numWords = ceil(4096.0 / blocksPerWord);
 		    blockDataOffset = currOffset;
 		    currOffset += numWords * 4;
 
-		    paletteSize = parseVarint(v, currOffset);
+		    paletteSize = parseInt32(v, currOffset);
 		    currOffset += 4;
+
+		    //cerr << "Storage " << i << ": BPB: " << bitsPerBlock << " BPW: " << blocksPerWord << " Words: " << numWords << " PSize: " << paletteSize << endl;
+
+		    //for(int x = currOffset; x < v.size(); x++)
+			//fprintf(stderr, "%02x ", static_cast<uint8_t>(v[x]));
 
 		    //Read palette data (block IDs and data)
 		    for(int p = 0; p < paletteSize; p++)
 		    {
-			//NBTTag tag;
-			//currOffset = parseNBTTag(v, currOffset, &tag);
+			NBTTag tag;
+			currOffset = parseNBTTag(v, currOffset, tag);
 		    }
+
+		    paletteOffset = currOffset;
+		    currOffset = blockDataOffset;
+		    position = 0;
 
 		    //Read block state data and get positions
 		    for(int w = 0; w < numWords; w++)
 		    {
-			//Data starts from blockDataOffset
+			int32_t word = parseInt32(v, currOffset);
+			currOffset += 4;
+
+			for(int block = 0; block < blocksPerWord; block++)
+			{
+			    int state = (word >> ((position % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
+			    int x = (position >> 8) & 0xF;
+			    int y = position & 0xF;
+			    int z = (position >> 4) & 0xF;
+
+			    //cerr << "Found block " << state << " at (" << x << ", " << y << ", " << z << ")" << endl;
+			    position++;
+			}
 		    }
 
-		    cerr << "Number of Words: " << numWords << " PSize: " << paletteSize << endl;
+		    currOffset = paletteOffset;
+
+		    //cerr << "Number of Words: " << numWords << " PSize: " << paletteSize << endl;
 		}
 
-		cerr << endl;
-	    	
-		/*for(int i = 0; i < v.size(); i++)
-		{
-		    fprintf(stderr, "%02x ", (unsigned char)v[i]);
-		}*/
+		//cerr << endl;
 	    }
 
 	    totalChunks++;
 	}
     }
 
-    cerr << "Total Chunks: " << totalChunks << endl;
+    cerr << "Total Sub Chunks: " << totalChunks << endl;
 
     return true;
 }
