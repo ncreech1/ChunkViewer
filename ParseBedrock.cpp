@@ -3,16 +3,15 @@
 #include <cmath>
 #include "ParseBedrock.h"
 #include "NBTTag.h"
+#include "WorldData.h"
+#include "Chunk.h"
 #include "leveldb/db.h" 
-//#include "leveldb/env.h"
-//#include "leveldb/filter_policy.h"
-//#include "leveldb/cache.h"
 #include "leveldb/zlib_compressor.h"
 #include "leveldb/decompress_allocator.h"
 
 using namespace std;
 
-int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag, bool parseType = true);
+int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag *tag, bool parseType = true);
 
 //Parses a little endian int32 from a Slice
 int32_t parseInt32(leveldb::Slice &s, int32_t offset)
@@ -44,7 +43,23 @@ int16_t parseShort(leveldb::Slice &s, int16_t offset)
     return result;
 }
 
-//Parses a little endian varint from a Slice and modifies the offset reference
+//Parses a little endian int64 from a Slice
+int64_t parseLong(leveldb::Slice &s, int16_t offset)
+{
+    int64_t result;
+
+    result = 0;
+    for(int i = 0; i < 8; i++)
+    {
+	//Static cast prevents sign extension
+	result |= (static_cast<uint8_t>(s[offset + i] << i * 8));
+    }
+
+    return result;
+}
+
+
+/*Parses a little endian varint from a Slice and modifies the offset reference
 int32_t parseVarint(leveldb::Slice &s, uint32_t &offset)
 {
     int32_t result;
@@ -118,44 +133,45 @@ int64_t parseVarlongZZ(leveldb::Slice s, uint32_t &offset)
     encoded = parseVarlong(s, offset);
     
     return (encoded & 1) ? (encoded >> 1) ^ -1 : (encoded >> 1);
-}
+}*/
 
 //Parses a Slice for an NBTTag payload and returns the new offset 
-int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
+int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag *tag)
 {
     uint32_t stringLength;
     uint32_t listLength;
     NBTType listType;
 
-    switch(tag.type)
+    switch(tag->type)
     {
 	case NBTType::BYTE:
-	    tag.byteVal = s[offset];
+	    tag->byteVal = s[offset];
 	    offset++;
 	    //cerr << "Byte Payload: " << tag.byteVal << endl;
 	    break;
 	case NBTType::SHORT:
-	    tag.shortVal = parseShort(s, offset);
+	    tag->shortVal = parseShort(s, offset);
 	    offset += 2;
 	    break;
 	case NBTType::INT:
 	    //cerr << "Parsing Int Tag " << tag.name << endl;
-	    tag.intVal = parseInt32(s, offset);
+	    tag->intVal = parseInt32(s, offset);
 	    offset += 4;
 	    //cerr << "Int Payload: " << tag.intVal << endl;
 	    //cerr << "End of Int Tag" << endl;
 	    break;
 	case NBTType::LONG:
-	    tag.longVal = parseVarlongZZ(s, offset);
+	    tag->longVal = parseLong(s, offset);
+	    offset += 8;
 	    break;
 	case NBTType::STRING:
 	    //cerr << "Parsing String Tag " << tag.name << endl;
 	    stringLength = parseShort(s, offset);
 	    offset += 2;
-	    tag.stringVal = "";
+	    tag->stringVal = "";
 	    for(int x = 0; x < stringLength; x++)
 	    {
-		tag.stringVal += static_cast<char>(s[offset]);
+		tag->stringVal += static_cast<char>(s[offset]);
 		offset++;
 	    }
 	    //cerr << "String Payload: " << tag.stringVal << endl;
@@ -164,22 +180,23 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
 	case NBTType::LIST:
 	    listType = static_cast<NBTType>(s[offset]);
 	    offset++;
-	    listLength = parseVarintZZ(s, offset);
+	    listLength = parseInt32(s, offset);
+	    offset += 4;
 	    for(int x = 0; x < listLength; x++)
 	    {
-		NBTTag innerTag;
-		innerTag.type = listType;
+		NBTTag *innerTag = new NBTTag;
+		innerTag->type = listType;
 		offset = parseNBTTag(s, offset, innerTag, false);
-		tag.addInnerTag(innerTag);
+		tag->addInnerTag(innerTag);
 	    }
 	    break;
 	case NBTType::COMPOUND:
 	    //cerr << "Parsing Compound Tag " << tag.name << endl;
 	    while(s[offset] != 0)
 	    {
-		NBTTag innerTag;
+		NBTTag *innerTag = new NBTTag;
 		offset = parseNBTTag(s, offset, innerTag);
-		tag.addInnerTag(innerTag);
+		tag->addInnerTag(innerTag);
 	    }
 	    //cerr << "End of Compound Tag " << tag.name << endl;
 	    offset++;
@@ -190,14 +207,14 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag &tag)
 }
 
 //Parses a Slice for an NBTTag and returns the new offset
-int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag, bool parseType /*=true*/)
+int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag *tag, bool parseType /*=true*/)
 {
     int32_t nameLength;
 
     //Parse the data type of the tag
     if(parseType)
     {
-	tag.type = static_cast<NBTType>(s[offset]);
+	tag->type = static_cast<NBTType>(s[offset]);
 	offset++;
     }
 
@@ -206,14 +223,14 @@ int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag, bool parseType 
     //Parse the length of the tag name
     nameLength = parseShort(s, offset);
     offset += 2;
-    tag.name = "";
+    tag->name = "";
 
     //cerr << "Name length: " << nameLength << endl;
 
     //Parse the tag name
     for(int i = 0; i < nameLength; i++)
     {
-	tag.name += static_cast<unsigned char>(s[offset]);
+	tag->name += static_cast<unsigned char>(s[offset]);
 	offset++;
     }
 
@@ -226,7 +243,7 @@ int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag &tag, bool parseType 
 }
 
 //Parses a Minecraft Bedrock db folder for chunk data 
-bool parseBedrock(string path)
+bool parseBedrock(string path, WorldData &world)
 {
     leveldb::DB *db;
     leveldb::Options options;
@@ -291,8 +308,8 @@ bool parseBedrock(string path)
 		chunkY = k[k.size() - 1];
 		currOffset = 0;
 
-		//cerr << "Found " << regionName << " Chunk at ";
-		//cerr << "(" << chunkX << ", " << chunkY << ", " << chunkZ << ")" << endl;
+		cerr << "Found " << regionName << " Chunk at ";
+		cerr << "(" << chunkX << ", " << chunkY << ", " << chunkZ << ")" << endl;
 
 		//for(int x = 0; x < v.size(); x++)
 		  //  fprintf(stderr, "%02x ", (unsigned char)v[x]);
@@ -352,8 +369,8 @@ bool parseBedrock(string path)
 		    //Read palette data (block IDs and data)
 		    for(int p = 0; p < paletteSize; p++)
 		    {
-			NBTTag tag;
-			currOffset = parseNBTTag(v, currOffset, tag);
+			NBTTag *rootTag = new NBTTag;
+			currOffset = parseNBTTag(v, currOffset, rootTag);
 		    }
 
 		    paletteOffset = currOffset;

@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include <map>
+#include <unordered_map>
 
 enum NBTType
 {
@@ -18,14 +18,13 @@ class NBTTag
 {
     public:
 	NBTType type;
-	uint16_t nameLength;
 	std::string name;
 	uint32_t intVal;
 	uint16_t shortVal;
 	uint8_t byteVal;
 	uint64_t longVal;
 	std::string stringVal;
-	void addInnerTag(NBTTag tag);
+	void addInnerTag(NBTTag *tag);
     private:
-	std::map<std::string, NBTTag> innerTags;
+	std::unordered_map<std::string, NBTTag*> innerTags;
 };

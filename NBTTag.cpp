@@ -2,7 +2,7 @@
 
 using namespace std;
 
-void NBTTag::addInnerTag(NBTTag tag)
+void NBTTag::addInnerTag(NBTTag *tag)
 {
-    innerTags[tag.name] = tag;
+    innerTags[tag->name] = tag;
 }
