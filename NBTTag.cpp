@@ -29,3 +29,19 @@ void NBTTag::freeMemory()
 	delete it->second;
     }
 }
+
+string NBTTag::printInnerTags()
+{
+    unordered_map<string, NBTTag*>::iterator it;
+    string toPrint;
+
+    toPrint = "";
+    for(it = innerTags.begin(); it != innerTags.end(); it++)
+    {
+	if(it->second->type == NBTType::STRING)
+	    toPrint += it->second->name + ":" + it->second->stringVal + " ";
+	toPrint += it->second->printInnerTags();
+    }
+
+    return toPrint;
+}

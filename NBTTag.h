@@ -27,6 +27,7 @@ class NBTTag
 	void addInnerTag(NBTTag *tag);
 	NBTTag* findInnerTag(std::string key);
 	void freeMemory();
+	std::string printInnerTags();
     private:
 	std::unordered_map<std::string, NBTTag*> innerTags;
 };

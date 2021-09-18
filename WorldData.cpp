@@ -6,7 +6,7 @@ void WorldData::addChunk(Chunk* chunk)
 {
     string chunkID;
 
-    chunkID = "" + chunk->x + chunk->z;
+    chunkID = "" + to_string(chunk->x) + "|" + to_string(chunk->z);
 
     chunks[chunkID] = chunk;
 }

@@ -6,6 +6,9 @@
 #include "WorldData.h"
 #include "Chunk.h"
 #include "leveldb/db.h" 
+#include "leveldb/env.h"
+#include "leveldb/filter_policy.h"
+#include "leveldb/cache.h"
 #include "leveldb/zlib_compressor.h"
 #include "leveldb/decompress_allocator.h"
 
@@ -236,6 +239,17 @@ bool parseBedrock(string path, WorldData &world)
     leveldb::Status status;
     leveldb::Iterator *lit;
 
+    class NullLogger : public leveldb::Logger
+    {
+	public:
+	    void Logv(const char*, va_list) override {}
+    };
+
+    options.filter_policy = leveldb::NewBloomFilterPolicy(10);
+    options.block_cache = leveldb::NewLRUCache(40 * 1024 * 1024);
+    options.write_buffer_size = 4 * 1024 * 1024;
+    options.info_log = new NullLogger;
+
     //Use the new raw-zip compressor to write (and read)
     options.compressors[0] = new leveldb::ZlibCompressorRaw(-1);
 
@@ -267,7 +281,8 @@ bool parseBedrock(string path, WorldData &world)
 	v = lit->value();
 
 	//Keys for chunks are between 9 and 14 bytes
-	if(k.size() >= 9 && k.size() <= 14)
+	//Keys of 10 and 14 bytes ending in '/' describe a 16x16x16 sub chunk of terrain
+	if((k.size() == 10 && k[8] == 0x2F) || (k.size() == 14 && k[12] == 0x2F))
 	{
 	    Chunk *currChunk;
 	    string chunkID;
@@ -279,17 +294,19 @@ bool parseBedrock(string path, WorldData &world)
 	    chunkZ = parseInt32(k, 4);
 	    regionName = "Overworld";
 
+	    //Extra bytes describing Nether and End regions
 	    if(k.size() == 13 || k.size() == 14)
 	    {
 		regionID = parseInt32(k, 8);
 		regionName = (regionID == 1 ? "Nether" : "End");
 	    }
 
-	    chunkID = "" + chunkX + chunkZ;
+	    chunkID = "" + to_string(chunkX) + "|" + to_string(chunkZ);
 	    
 	    //Check if chunk has already been visited and add to world if not
 	    if(regionName == "Overworld")
 	    {
+		int testZ = k[k.size() - 1];
 		currChunk = world.findChunk(chunkID);
 
 		if(currChunk == nullptr)
@@ -326,107 +343,93 @@ bool parseBedrock(string path, WorldData &world)
 		    world.addEndChunk(currChunk);
 		}
 	    }
-	
-	    //Keys of size 10 and 14 with the second to last byte equal to '/' are
-	    //sub chunk prefix keys describing 16x16x16 blocks of terrain		
-	    if((k.size() == 10 && k[8] == 0x2F) || (k.size() == 14 && k[12] == 0x2F))
-	    {	
-		uint32_t currOffset;
-		int chunkFormat, storageNum;
 
-		chunkY = k[k.size() - 1];
+	    uint32_t currOffset;
+	    int chunkFormat, storageNum;
 
-		//cerr << "Found " << regionName << " Chunk at ";
-		//cerr << "(" << chunkX << ", " << chunkY << ", " << chunkZ << ")" << endl;
-
-		currOffset = 0;
+	    chunkY = k[k.size() - 1];
+	    currOffset = 0;
 		
-		//The type of format this sub chunk uses
-		chunkFormat = v[currOffset];
-		currOffset++;
+	    //The type of format this sub chunk uses
+	    chunkFormat = v[currOffset];
+	    currOffset++;
 
-		//Sub chunk format should always be 0x08
-		if(chunkFormat != 8)
+	    //Sub chunk format should always be 0x08
+	    if(chunkFormat != 8)
+	    {
+	        cerr << "Old sub chunk format! Skipping..." << endl;
+	        continue;
+	    }
+
+	    //The number of block storages
+	    storageNum = v[currOffset];
+	    currOffset++;
+
+	    //Sub chunk format is followed by groups of bytes called block storages
+	    for(int i = 0; i < storageNum; i++)
+	    {
+	        int storageVersion;
+	        int bitsPerBlock, blocksPerWord, numWords;
+	        int blockDataOffset, paletteOffset;
+	        int32_t paletteSize;
+	        int pos;
+
+	        storageVersion = v[currOffset];
+	        currOffset++;
+		    
+		//Shouldn't happen since program is run on persistent storage
+		if(storageVersion & 0x01 == 1)
 		{
-		    cerr << "Old sub chunk format! Skipping..." << endl;
-		    continue;
+		    cerr << "Error: Block serialized for runtime!" << endl;
+		    return false;
 		}
 
-		//The number of block storages
-		storageNum = v[currOffset];
-		currOffset++;
+		bitsPerBlock = storageVersion >> 1;
+		blocksPerWord = 32 / bitsPerBlock;
 
-		//Sub chunk format is followed by groups of bytes called block storages
-		for(int i = 0; i < storageNum; i++)
+		numWords = ceil(4096.0 / blocksPerWord);
+		blockDataOffset = currOffset;
+		currOffset += numWords * 4;
+
+		paletteSize = parseInt32(v, currOffset);
+		currOffset += 4;
+
+		//Read palette data (block names and state data)
+		for(int p = 0; p < paletteSize; p++)
 		{
-		    int storageVersion;
-		    int bitsPerBlock, blocksPerWord, numWords;
-		    int blockDataOffset, paletteOffset;
-		    int32_t paletteSize;
-		    int position;
+		    NBTTag *rootTag = new NBTTag;
+		    currOffset = parseNBTTag(v, currOffset, rootTag);
+		    currChunk->addBlockState(chunkY, rootTag);
+		}
 
-		    storageVersion = v[currOffset];
-		    currOffset++;
+		paletteOffset = currOffset;
+		currOffset = blockDataOffset;
+		pos = 0;
 		    
-		    //Shouldn't happen since program is run on persistent storage
-		    if(storageVersion & 0x01 == 1)
-		    {
-			cerr << "Error: Block serialized for runtime!" << endl;
-			return false;
-		    }
-
-		    bitsPerBlock = storageVersion >> 1;
-		    blocksPerWord = 32 / bitsPerBlock;
-
-		    numWords = ceil(4096.0 / blocksPerWord);
-		    blockDataOffset = currOffset;
-		    currOffset += numWords * 4;
-
-		    paletteSize = parseInt32(v, currOffset);
+		//Read block state data and get positions
+		for(int w = 0; w < numWords; w++)
+		{
+		    int32_t word = parseInt32(v, currOffset);
 		    currOffset += 4;
 
-		    //Read palette data (block names and state data)
-		    for(int p = 0; p < paletteSize; p++)
+		    for(int block = 0; block < blocksPerWord; block++)
 		    {
-			NBTTag *rootTag = new NBTTag;
-			currOffset = parseNBTTag(v, currOffset, rootTag);
-			currChunk->addBlockState(chunkY, rootTag);
+			Block *currBlock;
+			NBTTag *stateData;
+		   
+			currBlock = new Block;
+			currBlock->state = (word >> ((pos % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
+			currBlock->x = ((pos >> 8) & 0xF) + 16 * chunkX;
+			currBlock->y = (pos & 0xF) + 16 * chunkY;
+			currBlock->z = ((pos >> 4) & 0xF) + 16 * chunkZ;
+
+			stateData = currChunk->getBlockState(chunkY, currBlock->state);
+			currBlock->name = stateData->findInnerTag("name")->stringVal;
+			pos++;
 		    }
-
-		    paletteOffset = currOffset;
-		    currOffset = blockDataOffset;
-		    position = 0;
-
-		    //Read block state data and get positions
-		    for(int w = 0; w < numWords; w++)
-		    {
-			int32_t word = parseInt32(v, currOffset);
-			currOffset += 4;
-
-			for(int block = 0; block < blocksPerWord; block++)
-			{
-			    Block *currBlock;
-			    NBTTag *stateData;
-			    
-			    currBlock = new Block;
-			    currBlock->state = (word >> ((position % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
-			    currBlock->x = ((position >> 8) & 0xF) + 16 * chunkX;
-			    currBlock->y = (position & 0xF) + 16 * chunkY;
-			    currBlock->z = ((position >> 4) & 0xF) + 16 * chunkZ;
-
-			    stateData = currChunk->getBlockState(chunkY, currBlock->state);
-			    currBlock->name = stateData->findInnerTag("name")->stringVal;
-			    
-			    if(chunkX == 23 && chunkZ == 2)
-			    {
-				cerr << "Found block " << currBlock->name << " at (" << currBlock->x << ", " << currBlock->y << ", " << currBlock->z << ")" << endl;
-			    }
-			    position++;
-			}
-		    }
-
-		    currOffset = paletteOffset;
 		}
+
+		currOffset = paletteOffset;
 	    }
 
 	    totalChunks++;
