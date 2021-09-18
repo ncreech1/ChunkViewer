@@ -13,10 +13,14 @@ struct Block
 class Chunk
 {
     public:
+	int x, y, z;
 	Chunk();
 	void addBlock(Block* block);
-	void addBlockState(NBTTag* state);
+	void addBlockState(int y, NBTTag* state);
+	Block* getBlock(int x, int y, int z);
+	NBTTag* getBlockState(int y, int state);
+	void freeMemory();
     private:
 	std::vector<std::vector<std::vector<Block*>>> blocks;
-	std::vector<NBTTag*> blockStates;
+	std::vector<std::vector<NBTTag*>> blockStates;
 };

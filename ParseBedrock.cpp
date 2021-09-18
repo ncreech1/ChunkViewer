@@ -147,25 +147,20 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag *tag)
 	case NBTType::BYTE:
 	    tag->byteVal = s[offset];
 	    offset++;
-	    //cerr << "Byte Payload: " << tag.byteVal << endl;
 	    break;
 	case NBTType::SHORT:
 	    tag->shortVal = parseShort(s, offset);
 	    offset += 2;
 	    break;
 	case NBTType::INT:
-	    //cerr << "Parsing Int Tag " << tag.name << endl;
 	    tag->intVal = parseInt32(s, offset);
 	    offset += 4;
-	    //cerr << "Int Payload: " << tag.intVal << endl;
-	    //cerr << "End of Int Tag" << endl;
 	    break;
 	case NBTType::LONG:
 	    tag->longVal = parseLong(s, offset);
 	    offset += 8;
 	    break;
 	case NBTType::STRING:
-	    //cerr << "Parsing String Tag " << tag.name << endl;
 	    stringLength = parseShort(s, offset);
 	    offset += 2;
 	    tag->stringVal = "";
@@ -174,8 +169,6 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag *tag)
 		tag->stringVal += static_cast<char>(s[offset]);
 		offset++;
 	    }
-	    //cerr << "String Payload: " << tag.stringVal << endl;
-	    //cerr << "End of String Tag" << endl;
 	    break;
 	case NBTType::LIST:
 	    listType = static_cast<NBTType>(s[offset]);
@@ -191,14 +184,12 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag *tag)
 	    }
 	    break;
 	case NBTType::COMPOUND:
-	    //cerr << "Parsing Compound Tag " << tag.name << endl;
 	    while(s[offset] != 0)
 	    {
 		NBTTag *innerTag = new NBTTag;
 		offset = parseNBTTag(s, offset, innerTag);
 		tag->addInnerTag(innerTag);
 	    }
-	    //cerr << "End of Compound Tag " << tag.name << endl;
 	    offset++;
 	    break;
     }
@@ -218,14 +209,10 @@ int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag *tag, bool parseType 
 	offset++;
     }
 
-    //cerr << "Found tag of type " << tag.type << endl;
-
     //Parse the length of the tag name
     nameLength = parseShort(s, offset);
     offset += 2;
     tag->name = "";
-
-    //cerr << "Name length: " << nameLength << endl;
 
     //Parse the tag name
     for(int i = 0; i < nameLength; i++)
@@ -233,8 +220,6 @@ int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag *tag, bool parseType 
 	tag->name += static_cast<unsigned char>(s[offset]);
 	offset++;
     }
-
-    //cerr << "Name: " << tag.name << endl;
 
     //Parse the tag payload
     offset = parseNBTPayload(s, offset, tag);
@@ -284,10 +269,12 @@ bool parseBedrock(string path, WorldData &world)
 	//Keys for chunks are between 9 and 14 bytes
 	if(k.size() >= 9 && k.size() <= 14)
 	{
+	    Chunk *currChunk;
+	    string chunkID;
 	    int32_t chunkX, chunkY, chunkZ;
 	    int32_t regionID;
 	    string regionName;
-
+    
 	    chunkX = parseInt32(k, 0);
 	    chunkZ = parseInt32(k, 4);
 	    regionName = "Overworld";
@@ -296,6 +283,48 @@ bool parseBedrock(string path, WorldData &world)
 	    {
 		regionID = parseInt32(k, 8);
 		regionName = (regionID == 1 ? "Nether" : "End");
+	    }
+
+	    chunkID = "" + chunkX + chunkZ;
+	    
+	    //Check if chunk has already been visited and add to world if not
+	    if(regionName == "Overworld")
+	    {
+		currChunk = world.findChunk(chunkID);
+
+		if(currChunk == nullptr)
+		{
+		    currChunk = new Chunk;
+		    currChunk->x = chunkX;
+		    currChunk->z = chunkZ;
+		    world.addChunk(currChunk);
+		}
+	    }
+
+	    else if(regionName == "Nether")
+	    {
+		currChunk = world.findNetherChunk(chunkID);
+
+		if(currChunk == nullptr)
+		{
+		    currChunk = new Chunk;
+		    currChunk->x = chunkX;
+		    currChunk->z = chunkZ;
+		    world.addNetherChunk(currChunk);
+		}
+	    }
+
+	    else
+	    {
+		currChunk = world.findEndChunk(chunkID);
+
+		if(currChunk == nullptr)
+		{
+		    currChunk = new Chunk;
+		    currChunk->x = chunkX;
+		    currChunk->z = chunkZ;
+		    world.addEndChunk(currChunk);
+		}
 	    }
 	
 	    //Keys of size 10 and 14 with the second to last byte equal to '/' are
@@ -306,15 +335,11 @@ bool parseBedrock(string path, WorldData &world)
 		int chunkFormat, storageNum;
 
 		chunkY = k[k.size() - 1];
+
+		//cerr << "Found " << regionName << " Chunk at ";
+		//cerr << "(" << chunkX << ", " << chunkY << ", " << chunkZ << ")" << endl;
+
 		currOffset = 0;
-
-		cerr << "Found " << regionName << " Chunk at ";
-		cerr << "(" << chunkX << ", " << chunkY << ", " << chunkZ << ")" << endl;
-
-		//for(int x = 0; x < v.size(); x++)
-		  //  fprintf(stderr, "%02x ", (unsigned char)v[x]);
-
-		cerr << dec;
 		
 		//The type of format this sub chunk uses
 		chunkFormat = v[currOffset];
@@ -329,10 +354,9 @@ bool parseBedrock(string path, WorldData &world)
 
 		//The number of block storages
 		storageNum = v[currOffset];
-		//cerr << "Block Storages: " << storageNum << endl;
 		currOffset++;
 
-		//Chunk format is followed by groups of bytes called block storages
+		//Sub chunk format is followed by groups of bytes called block storages
 		for(int i = 0; i < storageNum; i++)
 		{
 		    int storageVersion;
@@ -361,16 +385,12 @@ bool parseBedrock(string path, WorldData &world)
 		    paletteSize = parseInt32(v, currOffset);
 		    currOffset += 4;
 
-		    //cerr << "Storage " << i << ": BPB: " << bitsPerBlock << " BPW: " << blocksPerWord << " Words: " << numWords << " PSize: " << paletteSize << endl;
-
-		    //for(int x = currOffset; x < v.size(); x++)
-			//fprintf(stderr, "%02x ", static_cast<uint8_t>(v[x]));
-
-		    //Read palette data (block IDs and data)
+		    //Read palette data (block names and state data)
 		    for(int p = 0; p < paletteSize; p++)
 		    {
 			NBTTag *rootTag = new NBTTag;
 			currOffset = parseNBTTag(v, currOffset, rootTag);
+			currChunk->addBlockState(chunkY, rootTag);
 		    }
 
 		    paletteOffset = currOffset;
@@ -385,22 +405,28 @@ bool parseBedrock(string path, WorldData &world)
 
 			for(int block = 0; block < blocksPerWord; block++)
 			{
-			    int state = (word >> ((position % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
-			    int x = (position >> 8) & 0xF;
-			    int y = position & 0xF;
-			    int z = (position >> 4) & 0xF;
+			    Block *currBlock;
+			    NBTTag *stateData;
+			    
+			    currBlock = new Block;
+			    currBlock->state = (word >> ((position % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
+			    currBlock->x = ((position >> 8) & 0xF) + 16 * chunkX;
+			    currBlock->y = (position & 0xF) + 16 * chunkY;
+			    currBlock->z = ((position >> 4) & 0xF) + 16 * chunkZ;
 
-			    //cerr << "Found block " << state << " at (" << x << ", " << y << ", " << z << ")" << endl;
+			    stateData = currChunk->getBlockState(chunkY, currBlock->state);
+			    currBlock->name = stateData->findInnerTag("name")->stringVal;
+			    
+			    if(chunkX == 23 && chunkZ == 2)
+			    {
+				cerr << "Found block " << currBlock->name << " at (" << currBlock->x << ", " << currBlock->y << ", " << currBlock->z << ")" << endl;
+			    }
 			    position++;
 			}
 		    }
 
 		    currOffset = paletteOffset;
-
-		    //cerr << "Number of Words: " << numWords << " PSize: " << paletteSize << endl;
 		}
-
-		//cerr << endl;
 	    }
 
 	    totalChunks++;

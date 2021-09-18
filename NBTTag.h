@@ -25,6 +25,8 @@ class NBTTag
 	uint64_t longVal;
 	std::string stringVal;
 	void addInnerTag(NBTTag *tag);
+	NBTTag* findInnerTag(std::string key);
+	void freeMemory();
     private:
 	std::unordered_map<std::string, NBTTag*> innerTags;
 };

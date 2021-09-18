@@ -14,7 +14,9 @@ int main(int argc, char **argv)
     dbpath = argv[1];
 
     if(parseBedrock(dbpath, world))
-	return 0;
+    {
+	world.freeMemory();
+    }
 
     return -1;
 }

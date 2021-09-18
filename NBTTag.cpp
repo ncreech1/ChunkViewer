@@ -6,3 +6,26 @@ void NBTTag::addInnerTag(NBTTag *tag)
 {
     innerTags[tag->name] = tag;
 }
+
+NBTTag* NBTTag::findInnerTag(string key)
+{
+    unordered_map<string, NBTTag*>::iterator it;
+
+    it = innerTags.find(key);
+
+    if(it != innerTags.end())
+	return it->second;
+
+    return nullptr;
+}
+
+void NBTTag::freeMemory()
+{
+    unordered_map<string, NBTTag*>::iterator it;
+
+    for(it = innerTags.begin(); it != innerTags.end(); it++)
+    {
+	it->second->freeMemory();
+	delete it->second;
+    }
+}
