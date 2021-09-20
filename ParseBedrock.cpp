@@ -289,10 +289,15 @@ bool parseBedrock(string path, WorldData &world)
 	    int32_t chunkX, chunkY, chunkZ;
 	    int32_t regionID;
 	    string regionName;
-    
+	    uint32_t currOffset;
+	    int chunkFormat, storageNum;
+
 	    chunkX = parseInt32(k, 0);
+	    chunkY = k[k.size() - 1];
 	    chunkZ = parseInt32(k, 4);
 	    regionName = "Overworld";
+	    chunkID = "" + to_string(chunkX) + "|" + to_string(chunkZ);
+	    currOffset = 0;
 
 	    //Extra bytes describing Nether and End regions
 	    if(k.size() == 13 || k.size() == 14)
@@ -300,17 +305,15 @@ bool parseBedrock(string path, WorldData &world)
 		regionID = parseInt32(k, 8);
 		regionName = (regionID == 1 ? "Nether" : "End");
 	    }
-
-	    chunkID = "" + to_string(chunkX) + "|" + to_string(chunkZ);
 	    
 	    //Check if chunk has already been visited and add to world if not
 	    if(regionName == "Overworld")
 	    {
-		int testZ = k[k.size() - 1];
 		currChunk = world.findChunk(chunkID);
 
 		if(currChunk == nullptr)
 		{
+		    totalChunks++;
 		    currChunk = new Chunk;
 		    currChunk->x = chunkX;
 		    currChunk->z = chunkZ;
@@ -324,6 +327,7 @@ bool parseBedrock(string path, WorldData &world)
 
 		if(currChunk == nullptr)
 		{
+		    totalChunks++;
 		    currChunk = new Chunk;
 		    currChunk->x = chunkX;
 		    currChunk->z = chunkZ;
@@ -337,19 +341,14 @@ bool parseBedrock(string path, WorldData &world)
 
 		if(currChunk == nullptr)
 		{
+		    totalChunks++;
 		    currChunk = new Chunk;
 		    currChunk->x = chunkX;
 		    currChunk->z = chunkZ;
 		    world.addEndChunk(currChunk);
 		}
-	    }
+	    }	
 
-	    uint32_t currOffset;
-	    int chunkFormat, storageNum;
-
-	    chunkY = k[k.size() - 1];
-	    currOffset = 0;
-		
 	    //The type of format this sub chunk uses
 	    chunkFormat = v[currOffset];
 	    currOffset++;
@@ -412,6 +411,7 @@ bool parseBedrock(string path, WorldData &world)
 		    int32_t word = parseInt32(v, currOffset);
 		    currOffset += 4;
 
+		    //Blocks are stored in XZY order
 		    for(int block = 0; block < blocksPerWord; block++)
 		    {
 			Block *currBlock;
@@ -419,24 +419,30 @@ bool parseBedrock(string path, WorldData &world)
 		   
 			currBlock = new Block;
 			currBlock->state = (word >> ((pos % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
-			currBlock->x = ((pos >> 8) & 0xF) + 16 * chunkX;
-			currBlock->y = (pos & 0xF) + 16 * chunkY;
-			currBlock->z = ((pos >> 4) & 0xF) + 16 * chunkZ;
+			currBlock->rawX = ((pos >> 8) & 0xF);
+			currBlock->rawY = (pos & 0xF);
+			currBlock->rawZ = ((pos >> 4) & 0xF);
+			currBlock->x = currBlock->rawX + 16 *chunkX;
+			currBlock->y = currBlock->rawY + 16 * chunkY;
+			currBlock->z = currBlock->rawZ + 16 * chunkZ;
 
 			stateData = currChunk->getBlockState(chunkY, currBlock->state);
 			currBlock->name = stateData->findInnerTag("name")->stringVal;
+			currChunk->addBlock(currBlock);
 			pos++;
 		    }
 		}
-
+		    
+		//Move to start of next block data (if any)
 		currOffset = paletteOffset;
 	    }
-
-	    totalChunks++;
 	}
     }
 
-    cerr << "Total Sub Chunks: " << totalChunks << endl;
+    delete lit;
+    delete db;
+
+    cerr << "Total Chunks: " << totalChunks << endl;
 
     return true;
 }

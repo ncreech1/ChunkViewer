@@ -6,6 +6,7 @@
 struct Block
 {
     int x, y, z;
+    int rawX, rawY, rawZ;
     int state;
     std::string name;
 };

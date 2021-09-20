@@ -1,3 +1,4 @@
+#include <iostream>
 #include "WorldData.h"
 
 using namespace std;
@@ -27,7 +28,7 @@ void WorldData::addNetherChunk(Chunk* chunk)
 {
     string chunkID;
 
-    chunkID = "" + chunk->x + chunk->z;
+    chunkID = "" + to_string(chunk->x) + "|" + to_string(chunk->z);
 
     netherChunks[chunkID] = chunk;
 }
@@ -48,7 +49,7 @@ void WorldData::addEndChunk(Chunk* chunk)
 {
     string chunkID;
 
-    chunkID = "" + chunk->x + chunk->z;
+    chunkID = "" + to_string(chunk->x) + "|" + to_string(chunk->z);
 
     endChunks[chunkID] = chunk;
 }
@@ -68,7 +69,7 @@ Chunk* WorldData::findEndChunk(string id)
 void WorldData::freeMemory()
 {
     unordered_map<string, Chunk*>::iterator it;
-
+    
     for(it = chunks.begin(); it != chunks.end(); it++)
     {
 	it->second->freeMemory();

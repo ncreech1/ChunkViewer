@@ -2,7 +2,7 @@ CC = g++
 
 INCLUDE = ./leveldb-mcpe/include
 
-CFLAGS = -std=c++17 -DDLLX= -I. -I$(INCLUDE)
+CFLAGS = -g -std=c++17 -DDLLX= -I. -I$(INCLUDE)
 
 LIBS = -L./leveldb-mcpe/out-static -lleveldb -lz -lpthread
 
