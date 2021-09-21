@@ -3,15 +3,19 @@
 #include <string>
 #include "Chunk.h"
 
+enum ChunkDimension
+{
+    OVERWORLD,
+    NETHER,
+    ENDWORLD
+};
+
 class WorldData
 {
     public:
-	void addChunk(Chunk* chunk);
-	void addNetherChunk(Chunk* chunk);
-	void addEndChunk(Chunk* chunk);
-	Chunk* findChunk(std::string id);
-	Chunk* findNetherChunk(std::string id);
-	Chunk* findEndChunk(std::string id);
+	Block getBlock(int x, int y, int z, ChunkDimension dimension);
+	void addChunk(Chunk* chunk, ChunkDimension dimension);
+	Chunk* findChunk(std::string id, ChunkDimension dimension);
 	void freeMemory();
     private:
 	std::unordered_map<std::string, Chunk*> chunks;

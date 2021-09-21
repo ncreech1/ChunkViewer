@@ -15,6 +15,14 @@ int main(int argc, char **argv)
 
     if(parseBedrock(dbpath, world))
     {
+	/*Block test;
+	test = world.getBlock(672, 73, 22, ChunkDimension::OVERWORLD);
+	
+	if(test.state != -1)
+	{
+	    cerr << test.stateTag->findInnerTag("name")->stringVal << endl;
+	}*/
+
 	world.freeMemory();
     }
 

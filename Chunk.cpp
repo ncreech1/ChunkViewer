@@ -6,21 +6,34 @@ Chunk::Chunk()
     blocks.resize(16);
 
     for(int x = 0; x < 16; x++)
+    {
 	blocks[x].resize(16);
+	for(int z = 0; z < 16; z++)
+	    blocks[x][z].resize(256, -1);
+    }
 
     blockStates.resize(16);
 }
 
 //Adds a block to the 3D block vector
-void Chunk::addBlock(Block *block)
+void Chunk::addBlock(int state, int rawX, int y, int rawZ)
 {
-    blocks[block->rawX][block->rawZ].push_back(block);
+    blocks[rawX][rawZ][y] = state;
 }
 
 //Returns a block from the 3D block vector
-Block* Chunk::getBlock(int x, int y, int z)
+//Returns a block with state = -1 on failure
+Block Chunk::getBlock(int rawX, int y, int rawZ)
 {
-    return blocks[x][z][y];
+    Block result;
+    NBTTag* blockState;
+
+    result.state = blocks[rawX][rawZ][y];
+
+    if(result.state != -1)
+	result.stateTag = blockStates[y / 16][result.state];
+    
+    return result;
 }
 
 //Adds a block state NBTTag to the block state vector for subchunk y
@@ -38,17 +51,6 @@ NBTTag* Chunk::getBlockState(int y, int state)
 //Frees all memory associated with this chunk
 void Chunk::freeMemory()
 {
-    //Delete all 4096 block pointers
-    /*for(int x = 0; x < 16; x++)
-	for(int y = 0; y < 256; y++)
-	    for(int z = 0; z < 16; z++)
-		delete blocks[x][y][z];*/
-
-    for(int x = 0; x < 16; x++)
-	for(int z = 0; z < 16; z++)
-	    for(int y = 0; y < blocks[x][z].size(); y++)
-		delete blocks[x][z][y];
-
     //Delete all block states
     for(int y = 0; y < 16; y++)
     {

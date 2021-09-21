@@ -5,10 +5,8 @@
 
 struct Block
 {
-    int x, y, z;
-    int rawX, rawY, rawZ;
     int state;
-    std::string name;
+    NBTTag* stateTag;
 };
 
 class Chunk
@@ -16,12 +14,12 @@ class Chunk
     public:
 	int x, y, z;
 	Chunk();
-	void addBlock(Block* block);
+	void addBlock(int state, int rawX, int y, int rawZ);
 	void addBlockState(int y, NBTTag* state);
-	Block* getBlock(int x, int y, int z);
+	Block getBlock(int rawX, int y, int rawZ);
 	NBTTag* getBlockState(int y, int state);
 	void freeMemory();
     private:
-	std::vector<std::vector<std::vector<Block*>>> blocks;
+	std::vector<std::vector<std::vector<int>>> blocks;
 	std::vector<std::vector<NBTTag*>> blockStates;
 };
