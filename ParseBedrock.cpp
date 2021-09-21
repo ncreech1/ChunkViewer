@@ -25,7 +25,7 @@ int32_t parseInt32(leveldb::Slice &s, int32_t offset)
     for(int i = 0; i < 4; i++)
     {
 	//Static cast prevents sign extension
-	result |= (static_cast<uint8_t>(s[offset + i] << i * 8));
+	result |= (static_cast<uint8_t>(s[offset + i]) << i * 8);
     }
 
     return result;
@@ -40,7 +40,7 @@ int16_t parseShort(leveldb::Slice &s, int16_t offset)
     for(int i = 0; i < 2; i++)
     {
 	//Static cast prevents sign extension
-	result |= (static_cast<uint8_t>(s[offset + i] << i * 8));
+	result |= (static_cast<uint8_t>(s[offset + i]) << i * 8);
     }
 
     return result;
@@ -55,89 +55,12 @@ int64_t parseLong(leveldb::Slice &s, int16_t offset)
     for(int i = 0; i < 8; i++)
     {
 	//Static cast prevents sign extension
-	result |= (static_cast<uint8_t>(s[offset + i] << i * 8));
+	result |= (static_cast<uint8_t>(s[offset + i]) << i * 8);
     }
 
     return result;
 }
-
-
-/*Parses a little endian varint from a Slice and modifies the offset reference
-int32_t parseVarint(leveldb::Slice &s, uint32_t &offset)
-{
-    int32_t result;
-    uint8_t byte;
-    int i;
     
-    i = 0;
-    result = 0;
-    while(1)
-    {
-	byte = s[offset + i];
-
-	//Mask out the MSB and shift
-	result |= static_cast<uint8_t>(byte & 0x7F) << (i * 7);
-
-	//Zero in MSB indicates end of varint
-	//Static cast to prevent sign extension
-	if(static_cast<uint8_t>(byte & 0x80u) == 0)
-	    break;
-	
-	i++;
-    }
-
-    offset += i + 1;
-    return result;
-}
-
-//Parses a little endian varlong from a Slice and modifies the offset reference
-int64_t parseVarlong(leveldb::Slice &s, uint32_t &offset)
-{
-    int64_t result;
-    uint8_t byte;
-    int i;
-    
-    i = 0;
-    result = 0;
-    while(1)
-    {
-	byte = s[offset + i];
-
-	//Mask out the MSB and shift
-	result |= static_cast<uint8_t>(byte & 0x7F) << (i * 7);
-
-	//Zero in MSB indicates end of varint
-	//Static cast to prevent sign extension
-	if(static_cast<int8_t>(byte & 0x80u) == 0)
-	    break;
-	
-	i++;
-    }
-
-    offset += i + 1;
-    return result;
-}
-
-//Returns the varint as the signed decoding of the zig zag
-int32_t parseVarintZZ(leveldb::Slice s, uint32_t &offset)
-{
-    int32_t encoded;
-
-    encoded = parseVarint(s, offset);
-    
-    return (encoded & 1) ? (encoded >> 1) ^ -1 : (encoded >> 1);
-}
-
-//Returns the varlong as the signed decoding of the zig zag
-int64_t parseVarlongZZ(leveldb::Slice s, uint32_t &offset)
-{
-    int64_t encoded;
-
-    encoded = parseVarlong(s, offset);
-    
-    return (encoded & 1) ? (encoded >> 1) ^ -1 : (encoded >> 1);
-}*/
-
 //Parses a Slice for an NBTTag payload and returns the new offset 
 int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag *tag)
 {
@@ -288,14 +211,15 @@ bool parseBedrock(string path, WorldData &world)
 	    string chunkID;
 	    int32_t chunkX, chunkY, chunkZ;
 	    int32_t regionID;
-	    string regionName;
+	    ChunkDimension dimension;
 	    uint32_t currOffset;
 	    int chunkFormat, storageNum;
 
+	    //Set up basic chunk data (position, dimension, ID)
 	    chunkX = parseInt32(k, 0);
 	    chunkY = k[k.size() - 1];
 	    chunkZ = parseInt32(k, 4);
-	    regionName = "Overworld";
+	    dimension = ChunkDimension::OVERWORLD;
 	    chunkID = "" + to_string(chunkX) + "|" + to_string(chunkZ);
 	    currOffset = 0;
 
@@ -303,51 +227,19 @@ bool parseBedrock(string path, WorldData &world)
 	    if(k.size() == 13 || k.size() == 14)
 	    {
 		regionID = parseInt32(k, 8);
-		regionName = (regionID == 1 ? "Nether" : "End");
+		dimension = (regionID == 1 ? ChunkDimension::NETHER : ChunkDimension::ENDWORLD);
 	    }
 	    
 	    //Check if chunk has already been visited and add to world if not
-	    if(regionName == "Overworld")
+	    currChunk = world.findChunk(chunkID, dimension);
+	    if(currChunk == nullptr)
 	    {
-		currChunk = world.findChunk(chunkID);
-
-		if(currChunk == nullptr)
-		{
-		    totalChunks++;
-		    currChunk = new Chunk;
-		    currChunk->x = chunkX;
-		    currChunk->z = chunkZ;
-		    world.addChunk(currChunk);
-		}
+	        totalChunks++;
+	        currChunk = new Chunk;
+	        currChunk->x = chunkX;
+	        currChunk->z = chunkZ;
+	        world.addChunk(currChunk, dimension);
 	    }
-
-	    else if(regionName == "Nether")
-	    {
-		currChunk = world.findNetherChunk(chunkID);
-
-		if(currChunk == nullptr)
-		{
-		    totalChunks++;
-		    currChunk = new Chunk;
-		    currChunk->x = chunkX;
-		    currChunk->z = chunkZ;
-		    world.addNetherChunk(currChunk);
-		}
-	    }
-
-	    else
-	    {
-		currChunk = world.findEndChunk(chunkID);
-
-		if(currChunk == nullptr)
-		{
-		    totalChunks++;
-		    currChunk = new Chunk;
-		    currChunk->x = chunkX;
-		    currChunk->z = chunkZ;
-		    world.addEndChunk(currChunk);
-		}
-	    }	
 
 	    //The type of format this sub chunk uses
 	    chunkFormat = v[currOffset];
@@ -405,7 +297,7 @@ bool parseBedrock(string path, WorldData &world)
 		currOffset = blockDataOffset;
 		pos = 0;
 		    
-		//Read block state data and get positions
+		//Read block position data and get state
 		for(int w = 0; w < numWords; w++)
 		{
 		    int32_t word = parseInt32(v, currOffset);
@@ -414,21 +306,18 @@ bool parseBedrock(string path, WorldData &world)
 		    //Blocks are stored in XZY order
 		    for(int block = 0; block < blocksPerWord; block++)
 		    {
-			Block *currBlock;
-			NBTTag *stateData;
+			int state, rawX, rawY, rawZ;
 		   
-			currBlock = new Block;
-			currBlock->state = (word >> ((pos % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
-			currBlock->rawX = ((pos >> 8) & 0xF);
-			currBlock->rawY = (pos & 0xF);
-			currBlock->rawZ = ((pos >> 4) & 0xF);
-			currBlock->x = currBlock->rawX + 16 *chunkX;
-			currBlock->y = currBlock->rawY + 16 * chunkY;
-			currBlock->z = currBlock->rawZ + 16 * chunkZ;
+			//When i > 0 this block has an alternate
+			if(i == 0)
+			{
+			    state = (word >> ((pos % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
+			    rawX = ((pos >> 8) & 0xF);
+			    rawY = (pos & 0xF);
+			    rawZ = ((pos >> 4) & 0xF);
+			    currChunk->addBlock(state, rawX, rawY + 16 * chunkY, rawZ);
+			}
 
-			stateData = currChunk->getBlockState(chunkY, currBlock->state);
-			currBlock->name = stateData->findInnerTag("name")->stringVal;
-			currChunk->addBlock(currBlock);
 			pos++;
 		    }
 		}

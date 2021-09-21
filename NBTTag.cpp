@@ -2,11 +2,13 @@
 
 using namespace std;
 
+//Adds a new inner tag to this tag
 void NBTTag::addInnerTag(NBTTag *tag)
 {
     innerTags[tag->name] = tag;
 }
 
+//Searches this tag's inner tags for one with the name key
 NBTTag* NBTTag::findInnerTag(string key)
 {
     unordered_map<string, NBTTag*>::iterator it;
@@ -19,6 +21,7 @@ NBTTag* NBTTag::findInnerTag(string key)
     return nullptr;
 }
 
+// Recursively frees all memory associated with this tag
 void NBTTag::freeMemory()
 {
     unordered_map<string, NBTTag*>::iterator it;

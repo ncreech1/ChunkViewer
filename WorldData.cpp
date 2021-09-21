@@ -1,69 +1,80 @@
 #include <iostream>
+#include <cmath>
 #include "WorldData.h"
 
 using namespace std;
 
-void WorldData::addChunk(Chunk* chunk)
+//Adds a chunk to the world
+void WorldData::addChunk(Chunk *chunk, ChunkDimension dimension)
 {
     string chunkID;
 
     chunkID = "" + to_string(chunk->x) + "|" + to_string(chunk->z);
 
-    chunks[chunkID] = chunk;
+    if(dimension == ChunkDimension::OVERWORLD)
+	chunks[chunkID] = chunk;
+    else if(dimension == ChunkDimension::NETHER)
+	netherChunks[chunkID] = chunk;
+    else
+	endChunks[chunkID] = chunk;
 }
 
-Chunk* WorldData::findChunk(string id)
+//Returns a pointer to the chunk with id "chunkX|chunkZ"
+//Returns a nulltpr on failure
+Chunk* WorldData::findChunk(string id, ChunkDimension dimension)
 {
     unordered_map<string, Chunk*>::iterator it;
     
-    it = chunks.find(id);
+    if(dimension == ChunkDimension::OVERWORLD)
+    {
+	it = chunks.find(id);
 
-    if(it != chunks.end())
-	return it->second;
+	if(it != chunks.end())
+	    return it->second;
+    }
+    
+    else if(dimension == ChunkDimension::NETHER)
+    {
+	it = netherChunks.find(id);
+	
+	if(it != netherChunks.end())
+	    return it->second;
+    }
+
+    else
+    {
+	it = endChunks.find(id);
+
+	if(it != endChunks.end())
+	    return it->second;
+    }
 
     return nullptr;
 }
 
-void WorldData::addNetherChunk(Chunk* chunk)
+//Returns a block at (x, y, z)
+//Returns a block with state = -1 on failure
+Block WorldData::getBlock(int x, int y, int z, ChunkDimension dimension)
 {
+    int chunkX, chunkZ, rawX, rawZ;
     string chunkID;
+    Chunk *blockChunk;
+    Block result;
 
-    chunkID = "" + to_string(chunk->x) + "|" + to_string(chunk->z);
+    chunkX = floor(x / 16.0);
+    chunkZ = floor(z / 16.0);
+    rawX = x - 16 * chunkX;
+    rawZ = z - 16 * chunkZ;
 
-    netherChunks[chunkID] = chunk;
-}
+    chunkID = "" + to_string(chunkX) + "|" + to_string(chunkZ);
+    blockChunk = findChunk(chunkID, dimension);
 
-Chunk* WorldData::findNetherChunk(string id)
-{
-    unordered_map<string, Chunk*>::iterator it;
-    
-    it = netherChunks.find(id);
+    if(blockChunk == nullptr)
+	result.state = -1;
+    else
+	result = blockChunk->getBlock(rawX, y, rawZ);
 
-    if(it != netherChunks.end())
-	return it->second;
-
-    return nullptr;
-}
-
-void WorldData::addEndChunk(Chunk* chunk)
-{
-    string chunkID;
-
-    chunkID = "" + to_string(chunk->x) + "|" + to_string(chunk->z);
-
-    endChunks[chunkID] = chunk;
-}
-
-Chunk* WorldData::findEndChunk(string id)
-{
-    unordered_map<string, Chunk*>::iterator it;
-    
-    it = endChunks.find(id);
-
-    if(it != endChunks.end())
-	return it->second;
-
-    return nullptr;
+    return result;
 }
 
 void WorldData::freeMemory()
