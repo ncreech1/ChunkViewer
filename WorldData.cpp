@@ -53,7 +53,7 @@ Chunk* WorldData::findChunk(string id, ChunkDimension dimension)
 }
 
 //Returns a block at (x, y, z)
-//Returns a block with state = -1 on failure
+//Returns a block with state < 0 on failure
 Block WorldData::getBlock(int x, int y, int z, ChunkDimension dimension)
 {
     int chunkX, chunkZ, rawX, rawZ;
@@ -73,6 +73,25 @@ Block WorldData::getBlock(int x, int y, int z, ChunkDimension dimension)
 	result.state = -1;
     else
 	result = blockChunk->getBlock(rawX, y, rawZ);
+
+    return result;
+}
+
+//Returns the chunk a block at (x, y, z) resides in
+//Returns nullptr on failure
+Chunk* WorldData::getBlockChunk(int x, int y, int z, ChunkDimension dimension)
+{
+    int chunkX, chunkZ, rawX, rawZ;
+    string chunkID;
+    Chunk *result;
+
+    chunkX = floor(x / 16.0);
+    chunkZ = floor(z / 16.0);
+    rawX = x - 16 * chunkX;
+    rawZ = z - 16 * chunkZ;
+
+    chunkID = "" + to_string(chunkX) + "|" + to_string(chunkZ);
+    result = findChunk(chunkID, dimension);
 
     return result;
 }

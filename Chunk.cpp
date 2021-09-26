@@ -1,5 +1,7 @@
 #include "Chunk.h"
 
+using namespace std;
+
 //Constructor initializes the 3D block vector and 2D block state vector
 Chunk::Chunk()
 {
@@ -22,15 +24,21 @@ void Chunk::addBlock(int state, int rawX, int y, int rawZ)
 }
 
 //Returns a block from the 3D block vector
-//Returns a block with state = -1 on failure
+//Returns a block with state < 0 on failure
 Block Chunk::getBlock(int rawX, int y, int rawZ)
 {
     Block result;
     NBTTag* blockState;
 
+    if(rawX < 0 || rawX >= blocks.size() || rawZ < 0 || rawZ >= blocks[rawX].size() || y < 0 || y > 256)
+    {
+	result.state = -1;
+	return result;
+    }
+
     result.state = blocks[rawX][rawZ][y];
 
-    if(result.state != -1)
+    if(result.state >= 0)
 	result.stateTag = blockStates[y / 16][result.state];
     
     return result;

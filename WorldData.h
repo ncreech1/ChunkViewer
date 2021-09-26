@@ -14,6 +14,7 @@ class WorldData
 {
     public:
 	Block getBlock(int x, int y, int z, ChunkDimension dimension);
+	Chunk* getBlockChunk(int x, int y, int z, ChunkDimension dimension);
 	void addChunk(Chunk* chunk, ChunkDimension dimension);
 	Chunk* findChunk(std::string id, ChunkDimension dimension);
 	void freeMemory();
