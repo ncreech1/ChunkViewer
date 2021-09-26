@@ -229,7 +229,18 @@ bool parseBedrock(string path, WorldData &world)
 		regionID = parseInt32(k, 8);
 		dimension = (regionID == 1 ? ChunkDimension::NETHER : ChunkDimension::ENDWORLD);
 	    }
-	    
+
+	    //The type of format this sub chunk uses
+	    chunkFormat = v[currOffset];
+	    currOffset++;
+
+	    //Sub chunk format should always be 0x08
+	    if(chunkFormat != 0x08)
+	    {
+	        cerr << "Unexpected sub chunk format! (" << chunkFormat << ") Skipping..." << endl;
+	        continue;
+	    }
+
 	    //Check if chunk has already been visited and add to world if not
 	    currChunk = world.findChunk(chunkID, dimension);
 	    if(currChunk == nullptr)
@@ -239,17 +250,6 @@ bool parseBedrock(string path, WorldData &world)
 	        currChunk->x = chunkX;
 	        currChunk->z = chunkZ;
 	        world.addChunk(currChunk, dimension);
-	    }
-
-	    //The type of format this sub chunk uses
-	    chunkFormat = v[currOffset];
-	    currOffset++;
-
-	    //Sub chunk format should always be 0x08
-	    if(chunkFormat != 8)
-	    {
-	        cerr << "Old sub chunk format! Skipping..." << endl;
-	        continue;
 	    }
 
 	    //The number of block storages
@@ -312,6 +312,9 @@ bool parseBedrock(string path, WorldData &world)
 			if(i == 0)
 			{
 			    state = (word >> ((pos % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);
+			    if(state > paletteSize - 1)
+				state = -2;
+
 			    rawX = ((pos >> 8) & 0xF);
 			    rawY = (pos & 0xF);
 			    rawZ = ((pos >> 4) & 0xF);
