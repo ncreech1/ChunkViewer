@@ -224,6 +224,8 @@ int main(int argc, char **argv)
 			    else 
 			    { 
 				cout << "Dimension must be overworld, nether, or end." << endl;
+				delete[] xyz;
+				cout << "cv> ";
 				continue;
 			    }
 			}
@@ -278,7 +280,10 @@ int main(int argc, char **argv)
 
 		    //Invalid coordinate format
 		    if(xyz == nullptr)
+		    {
+			cout << "cv> ";
 			continue;
+		    }
 
 		    //Default yMin and yMax is the block subchunk
 		    yMin = floor(xyz[1] / 16.0) * 16;
@@ -299,6 +304,8 @@ int main(int argc, char **argv)
 		    if(!validName)
 		    {
 			cout << "'" << fileName << "' is not a valid file name." << endl;
+			delete[] xyz;
+			cout << "cv> ";
 			continue;
 		    }
 
@@ -370,12 +377,18 @@ int main(int argc, char **argv)
 
 		    //An error occured while reading optional flags
 		    if(!foundFlags)
+		    {
+			delete[] xyz;
+			cout << "cv> ";
 			continue;
+		    }
     
 		    //Check graph bounds
 		    if(yMax < 0 || yMax <= yMin || yMin < 0)
 		    {
 			cout << "Graph bounds must be positive and (y > 0)" << endl;
+			delete[] xyz;
+			cout << "cv> ";
 			continue;
 		    }
 
@@ -385,6 +398,8 @@ int main(int argc, char **argv)
 		    if(chunk == nullptr)
 		    {
 			cout << "Block not valid for this world." << endl;
+			delete[] xyz;
+			cout << "cv> ";
 			continue;
 		    }
 
@@ -396,6 +411,8 @@ int main(int argc, char **argv)
 		    {
 			string err = "Error creating file '" + fileName + "':";
 			perror(err.c_str());
+			delete[] xyz;
+			cout << "cv> ";
 			continue;
 		    }
 		    
