@@ -103,7 +103,7 @@ void drawSlice(ofstream &file, Chunk *chunk, int *xyz, string &facing, int yMin,
 	else
 	    rawZ = i;
 	
-	//Always print all y coords
+	//Print y coords between yMin and yMax
 	for(int y = yMin; y < yMax; y++)
 	{
 	    name = "";
@@ -169,6 +169,7 @@ int main(int argc, char **argv)
     if(parseBedrock(dbpath, world))
     {	
 	//Read in commands
+	cout << "cv> ";
 	while(getline(cin, line, '\n'))
 	{
 	    stringstream ss(line);
@@ -185,6 +186,9 @@ int main(int argc, char **argv)
 		ChunkDimension dim;
 		
 		ss >> word;
+
+		if(ss.eof())
+		    word = "";
 
 		//What block is at (x,y,z)?
 		if(word == "block")
@@ -252,13 +256,14 @@ int main(int argc, char **argv)
 
 		ss >> word;
 
+		if(ss.eof())
+		    word = "";
+
 		//Graph the slice a block is in from the given direction
 		if(word == "block")
 		{
 		    //Default Parameters
 		    dim = ChunkDimension::OVERWORLD;
-		    yMin = 0;
-		    yMax = 64;
 		    facing = "n";
 		    foundFlags = true;
 
@@ -269,6 +274,10 @@ int main(int argc, char **argv)
 		    //Invalid coordinate format
 		    if(xyz == nullptr)
 			continue;
+
+		    //Default yMin and yMax is the block subchunk
+		    yMin = floor(xyz[1] / 16.0) * 16;
+		    yMax = yMin + 16;
 
 		    //Get file name
 		    ss >> fileName;
@@ -388,11 +397,11 @@ int main(int argc, char **argv)
 		    string axis = (facing == "n" || facing == "s" ? "X" : "Z");
 		    file << "newgraph" << endl;
 		    file << "x_translate -7" << endl;
-		    file << "y_translate " << ((64 / (yMax - yMin) - 1) * -1) << endl;
+		    file << "y_translate " << ((64.0 / (yMax - yMin) - 1) * -1) << endl;
 		    file << "xaxis min 0 max 16 size " << 2.5;
 		    file << " hash 4 mhash 3 label : Block " << axis << endl;
 		    file << "yaxis min " << yMin << " max " << yMax;
-		    file << " size " << (2.5 * ((yMax - yMin) / 16));
+		    file << " size " << (2.5 * ((yMax - yMin) / 16.0));
 		    file << " hash 4 mhash 3 label : Block Y" << endl;
 
 		    //Draw chunk slice
@@ -406,10 +415,28 @@ int main(int argc, char **argv)
 		    cout << "Invalid 'graph' argument '" << word << "'" << endl;
 	    }
 
+	    else if(word == "help")
+	    {
+		ss >> word;
+
+		if(ss.eof())
+		    word = "";
+
+		if(word == "what")
+		    cout << "what [block] [(x,y,z)] [-d dimension]" << endl;
+		else if(word == "graph")
+		    cout << "graph [block] [(x,y,z)] [-d overworld|nether|end] [-f n|s|e|w] [-ymin int] [-ymax int]" << endl;
+		else
+		    cout << "Unknown command '" << word << "'" << endl;
+	    }
+
 	    else
 		cout << "Unknown command '" << word << "'" << endl;
+
+	    cout << "cv> ";
 	}
 
+	cout << endl;
 	world.freeMemory();
     }
 
