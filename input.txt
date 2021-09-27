@@ -1,3 +1,0 @@
-what block (244,70,24)
-what block (246,65,24)
-graph block (244,70,24) a.out -ymin 32 -ymax 47

@@ -3,6 +3,7 @@
 #include <string>
 #include "Chunk.h"
 
+//The Minecraft dimensions
 enum ChunkDimension
 {
     OVERWORLD,

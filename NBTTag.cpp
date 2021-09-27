@@ -14,10 +14,12 @@ NBTTag* NBTTag::findInnerTag(string key)
     unordered_map<string, NBTTag*>::iterator it;
     NBTTag *t;
 
+    //Try surface level tags first
     it = innerTags.find(key);
     if(it != innerTags.end())
 	return it->second;
 
+    //Recursively search inner tags
     for(it = innerTags.begin(); it != innerTags.end(); it++)
     {
 	t = it->second->findInnerTag(key);
@@ -41,7 +43,7 @@ void NBTTag::freeMemory()
     }
 }
 
-//Returns the specific name for a block
+//Returns the specific name for a block (if there is one)
 string NBTTag::getBlockType()
 {
     NBTTag *t;
@@ -59,6 +61,7 @@ string NBTTag::getBlockType()
 	else
 	    return "stone_" + t->stringVal;
     }
+
     if(blockName == "minecraft:leaves" || blockName == "minecraft:leaves2")
     {
 	t = findInnerTag("old_leaf_type");
@@ -108,6 +111,7 @@ string NBTTag::getBlockType()
     return "NULL";
 }
 
+//For use in debugging; prints all the inner tags' names recursively
 string NBTTag::printInnerTags()
 {
     unordered_map<string, NBTTag*>::iterator it;

@@ -110,6 +110,7 @@ int parseNBTPayload(leveldb::Slice &s, uint32_t offset, NBTTag *tag)
 	    }
 	    break;
 	case NBTType::COMPOUND:
+	    //A byte equal to 0 signals end of compound
 	    while(s[offset] != 0)
 	    {
 		NBTTag *innerTag = new NBTTag;
@@ -128,7 +129,7 @@ int parseNBTTag(leveldb::Slice &s, uint32_t offset, NBTTag *tag, bool parseType 
 {
     int32_t nameLength;
 
-    //Parse the data type of the tag
+    //Parse the data type of the tag (list tags do not have a type)
     if(parseType)
     {
 	tag->type = static_cast<NBTType>(s[offset]);
@@ -162,12 +163,14 @@ bool parseBedrock(string path, WorldData &world)
     leveldb::Status status;
     leveldb::Iterator *lit;
 
+    //This tells the leveldb library to discard extraneous output
     class NullLogger : public leveldb::Logger
     {
 	public:
 	    void Logv(const char*, va_list) override {}
     };
 
+    //Set up the leveldb parse options
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     options.block_cache = leveldb::NewLRUCache(40 * 1024 * 1024);
     options.write_buffer_size = 4 * 1024 * 1024;
@@ -188,11 +191,12 @@ bool parseBedrock(string path, WorldData &world)
     //Error opening db folder
     if(!status.ok())
     {
-	cout << "Could not open db folder '" << path << "'" << endl;
+	cerr << "Could not open db folder '" << path << "'" << endl;
 	return false;
     }
 
     lit = db->NewIterator(readOptions);
+    cerr << "Reading world save..." << endl;
 
     //Iterate the db table
     int totalChunks = 0;
@@ -309,6 +313,7 @@ bool parseBedrock(string path, WorldData &world)
 			int state, rawX, rawY, rawZ;
 		   
 			//When i > 0 this block has an alternate
+			//This is rare, and not interesting, so I chose to discard this
 			if(i == 0)
 			{
 			    state = (word >> ((pos % blocksPerWord) * bitsPerBlock)) & ((1 << bitsPerBlock) - 1);

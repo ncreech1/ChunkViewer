@@ -2,6 +2,7 @@
 #include <string>
 #include <unordered_map>
 
+//The different NBT byte IDs
 enum NBTType
 {
     END = 0,

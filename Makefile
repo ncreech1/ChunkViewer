@@ -1,3 +1,5 @@
+ALL = ./ChunkViewer run_examples
+
 CC = g++
 
 INCLUDE = ./leveldb-mcpe/include
@@ -7,6 +9,11 @@ CFLAGS = -g -std=c++17 -DDLLX= -I. -I$(INCLUDE)
 LIBS = -L./leveldb-mcpe/out-static -lleveldb -lz -lpthread
 
 OBJS = ChunkViewer.o ParseBedrock.o NBTTag.o WorldData.o Chunk.o
+
+all: $(ALL)
+
+clean:
+	rm ./*.o ./ChunkViewer
 
 ChunkViewer: $(OBJS)
 	$(CC) $(CFLAGS) -o ChunkViewer $(OBJS) $(LIBS)
@@ -25,3 +32,6 @@ WorldData.o: WorldData.cpp Chunk.h
 
 Chunk.o: Chunk.cpp NBTTag.h
 	$(CC) $(CFLAGS) -c Chunk.cpp $(LIBS)
+
+run_examples:
+	$(shell sh gen_examples.sh)

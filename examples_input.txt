@@ -1,0 +1,5 @@
+graph block (648,69,220) terrainX.txt -ymin 8 -ymax 71
+graph block (648,69,220) terrainZ.txt -f e -ymin 8 -ymax 71
+graph block (651,70,215) trees.txt
+graph block (678,62,222) beach.txt -ymin 48 -ymax 71
+graph block (678,62,222) beachBedrock.txt -ymin 0 -ymax 63

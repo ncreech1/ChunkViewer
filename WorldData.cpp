@@ -96,22 +96,26 @@ Chunk* WorldData::getBlockChunk(int x, int y, int z, ChunkDimension dimension)
     return result;
 }
 
+//Frees all memory associated with this world
 void WorldData::freeMemory()
 {
     unordered_map<string, Chunk*>::iterator it;
     
+    //Free overworld chunks
     for(it = chunks.begin(); it != chunks.end(); it++)
     {
 	it->second->freeMemory();
 	delete it->second;
     }
 
+    //Free nether chunks
     for(it = netherChunks.begin(); it != netherChunks.end(); it++)
     {
 	it->second->freeMemory();
 	delete it->second;
     }
 
+    //Free end chunks
     for(it = endChunks.begin(); it != endChunks.end(); it++)
     {
 	it->second->freeMemory();

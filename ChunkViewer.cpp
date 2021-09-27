@@ -12,6 +12,7 @@
 
 using namespace std;
 
+//Parses a string for the format (x,y,z)
 int* parseCoords(string word)
 {
     string xString, yString, zString;
@@ -66,6 +67,7 @@ int* parseCoords(string word)
     return xyz;
 }
 
+//Parses a string for an int and catches the exception
 bool parseInt(const string &word, int &out)
 {
     try { out = stoi(word); }
@@ -78,6 +80,7 @@ bool parseInt(const string &word, int &out)
     return true;
 }
 
+//Writes the jgraph eps commands for the chunk blocks to the specified file
 void drawSlice(ofstream &file, Chunk *chunk, int *xyz, string &facing, int yMin, int yMax)
 {
     Block currBlock;
@@ -108,7 +111,8 @@ void drawSlice(ofstream &file, Chunk *chunk, int *xyz, string &facing, int yMin,
 	{
 	    name = "";
 	    currBlock = chunk->getBlock(rawX, y, rawZ);
-				    
+	
+	    //Is this block valid?
 	    if(currBlock.state >= 0)
 	    {
 		name = currBlock.stateTag->findInnerTag("name")->stringVal;
@@ -175,7 +179,7 @@ int main(int argc, char **argv)
 	    stringstream ss(line);
 	    ss >> word;
 
-	    //Tell the user what is at a specific location
+	    //Tells the user what is at a specific location
 	    if(word == "what")
 	    {
 		bool valid = true;
@@ -243,6 +247,7 @@ int main(int argc, char **argv)
 		    cout << "Invalid 'what' argument '" << word << "'" << endl;
 	    }
 
+	    //Generates a jgraph script for a "slice" of a chunk
 	    else if(word == "graph")
 	    {
 		Chunk *chunk;
@@ -290,7 +295,7 @@ int main(int argc, char **argv)
 			    break;
 			}
 		    }
-
+	
 		    if(!validName)
 		    {
 			cout << "'" << fileName << "' is not a valid file name." << endl;
@@ -415,6 +420,7 @@ int main(int argc, char **argv)
 		    cout << "Invalid 'graph' argument '" << word << "'" << endl;
 	    }
 
+	    //Gives the usage for the specified command
 	    else if(word == "help")
 	    {
 		ss >> word;
@@ -425,7 +431,7 @@ int main(int argc, char **argv)
 		if(word == "what")
 		    cout << "what [block] [(x,y,z)] [-d dimension]" << endl;
 		else if(word == "graph")
-		    cout << "graph [block] [(x,y,z)] [-d overworld|nether|end] [-f n|s|e|w] [-ymin int] [-ymax int]" << endl;
+		    cout << "graph [block] [(x,y,z)] [filename] [-d overworld|nether|end] [-f n|s|e|w] [-ymin int] [-ymax int]" << endl;
 		else
 		    cout << "Unknown command '" << word << "'" << endl;
 	    }
@@ -436,8 +442,10 @@ int main(int argc, char **argv)
 	    cout << "cv> ";
 	}
 
+	//End of input reached
 	cout << endl;
 	world.freeMemory();
+	return 0;
     }
 
     return -1;
