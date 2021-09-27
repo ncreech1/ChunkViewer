@@ -191,9 +191,6 @@ int main(int argc, char **argv)
 		
 		ss >> word;
 
-		if(ss.eof())
-		    word = "";
-
 		//What block is at (x,y,z)?
 		if(word == "block")
 		{
@@ -206,7 +203,10 @@ int main(int argc, char **argv)
 
 		    //Invalid coordinate format
 		    if(xyz == nullptr)
+		    {
+			cout << "cv> ";
 			continue;
+		    }
 
 		    //Read in optional flags
 		    while(ss >> word)
@@ -262,9 +262,6 @@ int main(int argc, char **argv)
 		ofstream file;
 
 		ss >> word;
-
-		if(ss.eof())
-		    word = "";
 
 		//Graph the slice a block is in from the given direction
 		if(word == "block")
@@ -442,11 +439,8 @@ int main(int argc, char **argv)
 	    {
 		ss >> word;
 
-		if(ss.eof())
-		    word = "";
-
 		if(word == "what")
-		    cout << "what [block] [(x,y,z)] [-d dimension]" << endl;
+		    cout << "what [block] [(x,y,z)] [-d overworld|nether|end]" << endl;
 		else if(word == "graph")
 		    cout << "graph [block] [(x,y,z)] [filename] [-d overworld|nether|end] [-f n|s|e|w] [-ymin int] [-ymax int]" << endl;
 		else
