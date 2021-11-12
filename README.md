@@ -42,8 +42,11 @@ For this graph, I did not label the target block. However, you can easily pick o
 
 
 ### Compilation
-Compile the program by running the makefile, which will also run the test script *gen_examples.sh* and generate five example *.jpg* graphs:
+Compile the program by first running the makefile in the leveldb-mcpe directory. Then, run the makefile in the main directory, which will also run the test script *gen_examples.sh* and generate five example *.jpg* graphs:
 ```
+cd leveldb-mcpe
+make
+cd ..
 make
 ```
 
